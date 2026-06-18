@@ -4,8 +4,7 @@ Internes Tool für das Trainerteam: Übungen/Taktiken auf einem Spielfeld
 zeichnen, animieren, in einer Bibliothek verwalten, als Video/GIF exportieren
 und per Link mit Trainerkollegen teilen.
 
-Analog zu ft-graphics.fussballtraining.com, aber komplett selbst entwickelt
-und self-hosted.
+Komplett selbst entwickelt und self-hosted.
 
 ## Aktueller Stand (Grundgerüst)
 
