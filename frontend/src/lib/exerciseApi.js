@@ -11,6 +11,8 @@ function getAuthHeaders() {
 }
 
 async function request(path, options = {}) {
+  // Alle lokalen Editor-/Bibliotheks-Requests laufen durch diesen kleinen
+  // Wrapper, damit Auth-Header und Fehlerbehandlung konsistent bleiben.
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {

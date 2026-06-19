@@ -43,6 +43,9 @@ export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
   }, []);
 
   const handleOpenInEditor = (exercise) => {
+    // Lokal gespeicherte Uebungen enthalten bereits eine persistierte
+    // choreography und koennen deshalb vollstaendig in den Editor
+    // zurueckhydriert werden.
     const template = mapStoredExerciseToExerciseTemplate(exercise);
     onOpenInEditor(template);
     navigate('/editor');

@@ -30,6 +30,8 @@ function inferFieldTemplate(_searchResult) {
  * between external sources, the editor, and later persistence layers.
  */
 export function createExerciseTemplate(overrides = {}) {
+  // Dieses Template ist das gemeinsame Austauschformat zwischen:
+  // Bibliothek / Such-API, lokalem Backend und Editor-Hydration.
   const baseTemplate = {
     source: {
       type: 'manual',
@@ -117,6 +119,9 @@ export function mapSearchResultToExerciseTemplate(searchResult = {}) {
 }
 
 export function mapStoredExerciseToExerciseTemplate(exercise = {}) {
+  // Backend-Exercises werden fuer den Editor wieder in das interne
+  // Template-Modell zurueckgefuehrt. Entscheidend ist hier, dass die
+  // gespeicherte choreography unveraendert uebernommen wird.
   return createExerciseTemplate({
     id: exercise.id ?? null,
     source: {

@@ -14,6 +14,9 @@ export function buildExercisePayload({
   objects,
   keyframes,
 }) {
+  // Das Backend speichert kein ExerciseTemplate, sondern ein klassisches
+  // Exercise-Entity plus choreography als JSONB. Dieser Mapper bildet den
+  // Editor-State auf genau dieses bestehende Modell ab.
   return {
     title: title.trim(),
     description: description.trim() || null,

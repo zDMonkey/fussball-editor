@@ -102,6 +102,9 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
   };
 
   const handleOpenInEditor = (exercise) => {
+    // Externe Suchtreffer enthalten zunaechst nur Metadaten. Beim Oeffnen
+    // werden sie in ein internes ExerciseTemplate ueberfuehrt, das der
+    // Editor als Initialzustand lesen kann.
     const template = mapSearchResultToExerciseTemplate(exercise);
     onOpenInEditor(template);
     navigate('/editor');

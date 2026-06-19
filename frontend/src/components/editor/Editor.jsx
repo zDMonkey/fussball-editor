@@ -22,6 +22,9 @@ function leeresKeyframe() {
 }
 
 function getInitialEditorState(initialTemplate) {
+  // Nur der erste Render hydratisiert den Editor aus einem uebergebenen
+  // Template. Spaetere Prop-Aenderungen ueberschreiben den Arbeitsstand
+  // bewusst nicht automatisch.
   const choreography = initialTemplate?.choreography;
   const objects = Array.isArray(choreography?.objects) ? choreography.objects : [];
   const keyframes =
@@ -33,6 +36,8 @@ function getInitialEditorState(initialTemplate) {
 }
 
 function resolveReferenceImage(meta = {}) {
+  // Referenzbilder stammen entweder direkt aus thumbnailUrl oder werden
+  // aus thumbnailKey + konfigurierbarer Base-URL zusammengesetzt.
   const thumbnailUrl = meta.thumbnailUrl ?? '';
   const thumbnailKey = meta.thumbnailKey ?? '';
 
@@ -320,6 +325,8 @@ export default function Editor({ initialTemplate = null }) {
     });
 
     try {
+      // Erstes Speichern erzeugt eine neue Uebung im lokalen Backend.
+      // Ab dem ersten erfolgreichen Save wird auf Update umgeschaltet.
       const savedExercise = exerciseId
         ? await updateExercise(exerciseId, payload)
         : await createExercise(payload);
