@@ -51,3 +51,27 @@ export function listExercises() {
     method: 'GET',
   });
 }
+
+export function listExercisesFiltered(params = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (params.search?.trim()) {
+    searchParams.set('search', params.search.trim());
+  }
+
+  if (params.category?.trim()) {
+    searchParams.set('category', params.category.trim());
+  }
+
+  const queryString = searchParams.toString();
+
+  return request(`/api/exercises${queryString ? `?${queryString}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export function deleteExercise(id) {
+  return request(`/api/exercises/${id}`, {
+    method: 'DELETE',
+  });
+}

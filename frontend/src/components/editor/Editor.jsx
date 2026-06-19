@@ -6,7 +6,7 @@ import ElementPicker from './ElementPicker';
 import PlacedObject from './PlacedObject';
 import PropertiesPanel from './PropertiesPanel';
 import Timeline from './Timeline';
-import FieldVollfeldHoch from './FieldVollfeldHoch';
+import FieldVollfeldHoch, { getFieldVollfeldHochSvgDataUrl } from './FieldVollfeldHoch';
 import { createExercise, updateExercise } from '../../lib/exerciseApi';
 import { buildExercisePayload } from '../../lib/exercisePersistence';
 
@@ -57,6 +57,39 @@ const STANDARD_TOOL_OPTIONS = {
   shape: { fill: 'transparent', stroke: '#1f2937', strokeWidth: 2 },
 };
 
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Bild konnte nicht geladen werden.'));
+    image.src = src;
+  });
+}
+
+async function createEditorThumbnail(stage) {
+  if (!stage) return '';
+
+  const exportScale = 0.4;
+  const thumbnailWidth = Math.round(FELD_BREITE * exportScale);
+  const thumbnailHeight = Math.round(FELD_HOEHE * exportScale);
+  const canvas = document.createElement('canvas');
+  canvas.width = thumbnailWidth;
+  canvas.height = thumbnailHeight;
+
+  const context = canvas.getContext('2d');
+  if (!context) return '';
+
+  const [fieldImage, stageImage] = await Promise.all([
+    loadImage(getFieldVollfeldHochSvgDataUrl(FELD_BREITE, FELD_HOEHE)),
+    loadImage(stage.toDataURL({ pixelRatio: 1, mimeType: 'image/png' })),
+  ]);
+
+  context.drawImage(fieldImage, 0, 0, thumbnailWidth, thumbnailHeight);
+  context.drawImage(stageImage, 0, 0, thumbnailWidth, thumbnailHeight);
+
+  return canvas.toDataURL('image/png');
+}
+
 export default function Editor({ initialTemplate = null }) {
   const navigate = useNavigate();
   const initialState = getInitialEditorState(initialTemplate);
@@ -77,6 +110,7 @@ export default function Editor({ initialTemplate = null }) {
   const [title, setTitle]             = useState(initialMeta.title ?? '');
   const [description, setDescription] = useState(initialMeta.description ?? initialMeta.summary ?? '');
   const [ageGroup, setAgeGroup]       = useState(initialMeta.ageGroups?.[0] ?? '');
+  const [focusInput, setFocusInput]   = useState((initialMeta.focus ?? []).join(', '));
   const [durationMinutes, setDurationMinutes] = useState(
     initialMeta.durationMinutes == null ? '' : String(initialMeta.durationMinutes)
   );
@@ -416,14 +450,22 @@ export default function Editor({ initialTemplate = null }) {
     setSaveError('');
     setSaveMessage('');
 
+    const normalizedFocus = focusInput
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const stageDataUrl = await createEditorThumbnail(stageRef.current);
+
     const payload = buildExercisePayload({
       title: trimmedTitle,
       description,
       ageGroup,
       durationMinutes,
+      focus: normalizedFocus,
       fieldTemplate,
       objects,
       keyframes,
+      thumbnailUrl: stageDataUrl,
     });
 
     try {
@@ -478,6 +520,13 @@ export default function Editor({ initialTemplate = null }) {
             value={ageGroup}
             onChange={(event) => setAgeGroup(event.target.value)}
             placeholder="Altersklasse"
+          />
+          <input
+            className="editor-document-title"
+            type="text"
+            value={focusInput}
+            onChange={(event) => setFocusInput(event.target.value)}
+            placeholder="Schwerpunkte, z. B. Dribbling, Umschalten"
           />
           <input
             className="editor-document-meta"

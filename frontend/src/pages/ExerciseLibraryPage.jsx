@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { mapSearchResultToExerciseTemplate } from '../lib/exerciseTemplate';
+import { deleteExercise, listExercisesFiltered } from '../lib/exerciseApi';
+import { mapSearchResultToExerciseTemplate, mapStoredExerciseToExerciseTemplate } from '../lib/exerciseTemplate';
 
 const EXERCISE_SEARCH_API = 'https://b5zb58pdy4.execute-api.eu-north-1.amazonaws.com/prod/search';
 const THUMBNAIL_BASE_URL = (import.meta.env.VITE_THUMBNAIL_BASE_URL || '').replace(/\/$/, '');
@@ -21,8 +22,10 @@ function normalizeResults(payload) {
 }
 
 function getThumbnailUrl(exercise) {
-  const thumbnailKey = exercise.thumbnail_key ?? '';
+  const directThumbnailUrl = exercise.thumbnail_url ?? exercise.thumbnailUrl ?? '';
+  const thumbnailKey = exercise.thumbnail_key ?? exercise.thumbnailKey ?? '';
 
+  if (directThumbnailUrl) return directThumbnailUrl;
   if (!thumbnailKey) return '';
   if (thumbnailKey.startsWith('http://') || thumbnailKey.startsWith('https://') || thumbnailKey.startsWith('/')) {
     return thumbnailKey;
@@ -35,6 +38,32 @@ function getThumbnailUrl(exercise) {
   return `${THUMBNAIL_BASE_URL}/${thumbnailKey.replace(/^\//, '')}`;
 }
 
+function normalizeLocalExercise(exercise) {
+  const focus = Array.isArray(exercise.focus)
+    ? exercise.focus
+    : Array.isArray(exercise.choreography?.meta?.focus)
+    ? exercise.choreography.meta.focus
+    : [];
+
+  return {
+    ...exercise,
+    resultType: 'local',
+    sourceLabel: 'Eigene Übung',
+    summary: exercise.description ?? '',
+    focus,
+    players_min: null,
+    players_max: null,
+  };
+}
+
+function normalizeExternalExercise(exercise) {
+  return {
+    ...exercise,
+    resultType: 'external',
+    sourceLabel: 'Importiert',
+  };
+}
+
 export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,10 +71,12 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
   const initialQuery = searchParams.get('q') ?? '';
 
   const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState([]);
+  const [externalResults, setExternalResults] = useState([]);
+  const [localResults, setLocalResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(hasQueryParam);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -54,7 +85,8 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
   useEffect(() => {
     const trimmedQuery = initialQuery.trim();
     if (!hasQueryParam) {
-      setResults([]);
+      setExternalResults([]);
+      setLocalResults([]);
       setLoading(false);
       setError('');
       setHasSearched(false);
@@ -79,10 +111,21 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
         }
 
         const payload = await response.json();
-        setResults(normalizeResults(payload));
+        const nextExternalResults = normalizeResults(payload).map(normalizeExternalExercise);
+        const token = window.localStorage.getItem('token');
+        let nextLocalResults = [];
+
+        if (token) {
+          const localPayload = await listExercisesFiltered({ search: trimmedQuery });
+          nextLocalResults = (Array.isArray(localPayload) ? localPayload : []).map(normalizeLocalExercise);
+        }
+
+        setExternalResults(nextExternalResults);
+        setLocalResults(nextLocalResults);
       } catch (err) {
         if (err.name === 'AbortError') return;
-        setResults([]);
+        setExternalResults([]);
+        setLocalResults([]);
         setError('Die Übungssuche ist aktuell nicht erreichbar.');
       } finally {
         if (!controller.signal.aborted) {
@@ -102,13 +145,37 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
   };
 
   const handleOpenInEditor = (exercise) => {
-    // Externe Suchtreffer enthalten zunaechst nur Metadaten. Beim Oeffnen
-    // werden sie in ein internes ExerciseTemplate ueberfuehrt, das der
-    // Editor als Initialzustand lesen kann.
-    const template = mapSearchResultToExerciseTemplate(exercise);
+    const template = exercise.resultType === 'local'
+      ? mapStoredExerciseToExerciseTemplate(exercise)
+      : mapSearchResultToExerciseTemplate(exercise);
+
     onOpenInEditor(template);
     navigate('/editor');
   };
+
+  const handleDelete = async (exercise) => {
+    if (exercise.resultType !== 'local') {
+      return;
+    }
+
+    if (!window.confirm('Übung wirklich löschen?')) {
+      return;
+    }
+
+    setDeletingId(exercise.id);
+    setError('');
+
+    try {
+      await deleteExercise(exercise.id);
+      setLocalResults((current) => current.filter((item) => item.id !== exercise.id));
+    } catch (deleteError) {
+      setError(deleteError.message || 'Übung konnte nicht gelöscht werden.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const results = [...localResults, ...externalResults];
 
   return (
     <section className="library-page">
@@ -173,7 +240,7 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
         {results.map((exercise) => (
           <article className="exercise-card" key={exercise.exercise_id ?? exercise.source_key ?? exercise.title}>
             {getThumbnailUrl(exercise) ? (
-              <div className="exercise-card-thumbnail">
+              <div className={`exercise-card-thumbnail${exercise.resultType === 'local' ? ' exercise-card-thumbnail-portrait' : ''}`}>
                 <img
                   src={getThumbnailUrl(exercise)}
                   alt={`Vorschau für ${exercise.title || 'Übung'}`}
@@ -181,16 +248,24 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
                 />
               </div>
             ) : (
-              <div className="exercise-card-thumbnail exercise-card-thumbnail-placeholder" aria-hidden="true">
+              <div
+                className={`exercise-card-thumbnail exercise-card-thumbnail-placeholder${exercise.resultType === 'local' ? ' exercise-card-thumbnail-portrait' : ''}`}
+                aria-hidden="true"
+              >
                 <span>Keine Vorschau</span>
               </div>
             )}
 
             <div className="exercise-card-header">
               <h3>{exercise.title || 'Unbenannte Übung'}</h3>
-              <span className="exercise-card-players">
-                {formatPlayerCount(exercise.players_min, exercise.players_max)}
-              </span>
+              <div className="my-exercise-meta-row">
+                <span className="exercise-card-players">
+                  {exercise.resultType === 'local'
+                    ? (exercise.age_group || 'Eigene Übung')
+                    : formatPlayerCount(exercise.players_min, exercise.players_max)}
+                </span>
+                <span className="exercise-chip exercise-chip-muted">{exercise.sourceLabel}</span>
+              </div>
             </div>
 
             <p className="exercise-card-summary">
@@ -217,6 +292,16 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
               >
                 Im Editor öffnen
               </button>
+              {exercise.resultType === 'local' && (
+                <button
+                  className="exercise-card-action exercise-card-action-danger"
+                  type="button"
+                  onClick={() => handleDelete(exercise)}
+                  disabled={deletingId === exercise.id}
+                >
+                  {deletingId === exercise.id ? 'Löscht...' : 'Löschen'}
+                </button>
+              )}
             </div>
           </article>
         ))}

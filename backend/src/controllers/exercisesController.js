@@ -20,7 +20,11 @@ export async function listExercises(req, res) {
 
   if (search) {
     params.push(`%${search}%`);
-    conditions.push(`(e.title ILIKE $${params.length} OR e.description ILIKE $${params.length})`);
+    conditions.push(`(
+      e.title ILIKE $${params.length}
+      OR e.description ILIKE $${params.length}
+      OR COALESCE((e.choreography->'meta'->'focus')::text, '') ILIKE $${params.length}
+    )`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -61,7 +65,7 @@ export async function getExercise(req, res) {
 }
 
 export async function createExercise(req, res) {
-  const { title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, category_ids } = req.body;
+  const { title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, thumbnail_url, category_ids } = req.body;
 
   if (!title) {
     return res.status(400).json({ error: 'Titel ist erforderlich.' });
@@ -73,10 +77,10 @@ export async function createExercise(req, res) {
 
     const { rows } = await client.query(
       `INSERT INTO exercises
-        (title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, created_by)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 'vollfeld_hoch'), COALESCE($6::jsonb, '{"objects": [], "keyframes": []}'::jsonb), $7, $8)
+        (title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, thumbnail_url, created_by)
+       VALUES ($1, $2, $3, $4, COALESCE($5, 'vollfeld_hoch'), COALESCE($6::jsonb, '{"objects": [], "keyframes": []}'::jsonb), $7, $8, $9)
        RETURNING *`,
-      [title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, req.user.id]
+      [title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, thumbnail_url, req.user.id]
     );
 
     const exercise = rows[0];
@@ -101,7 +105,7 @@ export async function createExercise(req, res) {
 
 export async function updateExercise(req, res) {
   const { id } = req.params;
-  const { title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key } = req.body;
+  const { title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, thumbnail_url } = req.body;
 
   const { rows } = await pool.query(
     `UPDATE exercises SET
@@ -111,10 +115,11 @@ export async function updateExercise(req, res) {
        duration_minutes = COALESCE($4, duration_minutes),
        field_template = COALESCE($5, field_template),
        choreography = COALESCE($6::jsonb, choreography),
-       thumbnail_key = COALESCE($7, thumbnail_key)
-     WHERE id = $8
+       thumbnail_key = COALESCE($7, thumbnail_key),
+       thumbnail_url = COALESCE($8, thumbnail_url)
+     WHERE id = $9
      RETURNING *`,
-    [title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, id]
+    [title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, thumbnail_url, id]
   );
 
   if (!rows[0]) {

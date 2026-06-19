@@ -18,6 +18,10 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
+function extractStoredFocus(exercise = {}) {
+  return normalizeArray(exercise.focus ?? exercise.choreography?.meta?.focus);
+}
+
 function inferFieldTemplate(_searchResult) {
   // Die externe Suche liefert aktuell nur freie Feldgroessen-Texte.
   // Bis eine belastbare Zuordnung existiert, starten importierte Templates
@@ -136,6 +140,7 @@ export function mapStoredExerciseToExerciseTemplate(exercise = {}) {
       summary: exercise.description ?? '',
       ageGroups: exercise.age_group ? [exercise.age_group] : [],
       durationMinutes: Number.isFinite(exercise.duration_minutes) ? exercise.duration_minutes : null,
+      focus: extractStoredFocus(exercise),
       thumbnailKey: exercise.thumbnail_key ?? '',
       thumbnailUrl: exercise.thumbnail_url ?? '',
     },

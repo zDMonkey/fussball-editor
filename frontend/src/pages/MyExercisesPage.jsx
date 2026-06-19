@@ -1,10 +1,26 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listExercises } from '../lib/exerciseApi';
+import { deleteExercise, listExercises } from '../lib/exerciseApi';
 import { mapStoredExerciseToExerciseTemplate } from '../lib/exerciseTemplate';
 
 function formatDuration(value) {
   return Number.isFinite(value) ? `${value} Min.` : 'Keine Dauer';
+}
+
+function getThumbnailUrl(exercise) {
+  return exercise.thumbnail_url ?? '';
+}
+
+function getFocus(exercise) {
+  if (Array.isArray(exercise.focus)) {
+    return exercise.focus;
+  }
+
+  if (Array.isArray(exercise.choreography?.meta?.focus)) {
+    return exercise.choreography.meta.focus.filter(Boolean);
+  }
+
+  return [];
 }
 
 export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
@@ -12,6 +28,7 @@ export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -51,6 +68,24 @@ export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
     navigate('/editor');
   };
 
+  const handleDelete = async (exercise) => {
+    if (!window.confirm('Übung wirklich löschen?')) {
+      return;
+    }
+
+    setDeletingId(exercise.id);
+    setError('');
+
+    try {
+      await deleteExercise(exercise.id);
+      setExercises((current) => current.filter((item) => item.id !== exercise.id));
+    } catch (deleteError) {
+      setError(deleteError.message || 'Übung konnte nicht gelöscht werden.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <section className="library-page">
       <div className="library-hero">
@@ -76,6 +111,20 @@ export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
       <div className="library-grid">
         {exercises.map((exercise) => (
           <article className="exercise-card" key={exercise.id}>
+            {getThumbnailUrl(exercise) ? (
+              <div className="exercise-card-thumbnail exercise-card-thumbnail-portrait">
+                <img
+                  src={getThumbnailUrl(exercise)}
+                  alt={`Vorschau für ${exercise.title || 'Übung'}`}
+                  loading="lazy"
+                />
+              </div>
+            ) : (
+              <div className="exercise-card-thumbnail exercise-card-thumbnail-placeholder exercise-card-thumbnail-portrait" aria-hidden="true">
+                <span>Keine Vorschau</span>
+              </div>
+            )}
+
             <div className="exercise-card-header">
               <h3>{exercise.title || 'Unbenannte Übung'}</h3>
               <div className="my-exercise-meta-row">
@@ -88,6 +137,18 @@ export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
               {exercise.description || 'Für diese Übung liegt keine Beschreibung vor.'}
             </p>
 
+            <div className="exercise-card-focus">
+              {getFocus(exercise).length > 0 ? (
+                getFocus(exercise).map((item) => (
+                  <span className="exercise-chip" key={item}>
+                    {item}
+                  </span>
+                ))
+              ) : (
+                <span className="exercise-chip exercise-chip-muted">Keine Schwerpunkte</span>
+              )}
+            </div>
+
             <div className="exercise-card-actions">
               <button
                 className="exercise-card-action"
@@ -95,6 +156,14 @@ export default function MyExercisesPage({ onOpenInEditor = () => {} }) {
                 onClick={() => handleOpenInEditor(exercise)}
               >
                 Im Editor öffnen
+              </button>
+              <button
+                className="exercise-card-action exercise-card-action-danger"
+                type="button"
+                onClick={() => handleDelete(exercise)}
+                disabled={deletingId === exercise.id}
+              >
+                {deletingId === exercise.id ? 'Löscht...' : 'Löschen'}
               </button>
             </div>
           </article>

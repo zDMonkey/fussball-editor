@@ -10,9 +10,11 @@ export function buildExercisePayload({
   description,
   ageGroup,
   durationMinutes,
+  focus,
   fieldTemplate,
   objects,
   keyframes,
+  thumbnailUrl,
 }) {
   // Das Backend speichert kein ExerciseTemplate, sondern ein klassisches
   // Exercise-Entity plus choreography als JSONB. Dieser Mapper bildet den
@@ -23,9 +25,13 @@ export function buildExercisePayload({
     age_group: ageGroup.trim() || null,
     duration_minutes: normalizeDurationMinutes(durationMinutes),
     field_template: fieldTemplate,
+    thumbnail_url: thumbnailUrl || null,
     choreography: {
       objects,
       keyframes,
+      meta: {
+        focus,
+      },
     },
   };
 }

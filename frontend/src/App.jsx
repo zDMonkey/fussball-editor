@@ -28,6 +28,7 @@ function ProtectedRoute({ isAuthenticated, authReady, children }) {
 export default function App() {
   const navigate = useNavigate();
   const [currentEditorTemplate, setCurrentEditorTemplate] = useState(null);
+  const [editorResetVersion, setEditorResetVersion] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
@@ -73,10 +74,12 @@ export default function App() {
     window.localStorage.removeItem('token');
     setCurrentUser(null);
     setCurrentEditorTemplate(null);
+    setEditorResetVersion(0);
   };
 
   const handleNewEditor = () => {
     setCurrentEditorTemplate(null);
+    setEditorResetVersion((current) => current + 1);
     navigate('/editor');
   };
 
@@ -86,8 +89,9 @@ export default function App() {
         currentEditorTemplate.source?.type ?? 'source',
         currentEditorTemplate.source?.externalId ?? 'external',
         currentEditorTemplate.meta?.title ?? 'title',
+        editorResetVersion,
       ].join(':')
-    : 'empty-editor';
+    : `empty-editor:${editorResetVersion}`;
 
   return (
     <div className="app-shell">
