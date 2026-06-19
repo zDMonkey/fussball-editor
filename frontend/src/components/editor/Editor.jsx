@@ -87,6 +87,11 @@ export default function Editor({ initialTemplate = null }) {
   // Pfeil-Zeichenmodus: Startpunkt wartet auf zweiten Klick
   const [pfeilStart, setPfeilStart] = useState(null);
 
+  // Text-Inline-Editor: { id, screenX, screenY, text, fontSize, color, bold, italic }
+  const [textBearbeiten, setTextBearbeiten] = useState(null);
+
+  const stageRef = useRef(null);
+
   const [isPlaying, setIsPlaying]     = useState(false);
   const [livePositions, setLivePositions] = useState(null);
   const animRef = useRef(null);
@@ -108,13 +113,59 @@ export default function Editor({ initialTemplate = null }) {
 
   const updateToolOptions = (gruppe, neueWerte) => {
     setToolOptions((prev) => ({ ...prev, [gruppe]: neueWerte }));
-    // Wenn ein Pfeil-Objekt ausgewählt ist, dessen Optionen ebenfalls aktualisieren
-    if (gruppe === 'arrow' && selectedObjectId) {
-      setObjects((prev) =>
-        prev.map((o) =>
-          o.id === selectedObjectId && o.type === 'arrow' ? { ...o, ...neueWerte } : o
-        )
-      );
+    if (!selectedObjectId) return;
+
+    if (gruppe === 'arrow') {
+      setObjects((prev) => prev.map((o) =>
+        o.id === selectedObjectId && o.type === 'arrow' ? { ...o, ...neueWerte } : o
+      ));
+    } else if (gruppe === 'text') {
+      setObjects((prev) => prev.map((o) => {
+        if (o.id !== selectedObjectId || o.type !== 'text') return o;
+        return {
+          ...o,
+          fontSize: neueWerte.fontSize,
+          color:    neueWerte.color,
+          bold:     (neueWerte.style || []).includes('bold'),
+          italic:   (neueWerte.style || []).includes('italic'),
+        };
+      }));
+    } else if (gruppe === 'shape') {
+      setObjects((prev) => prev.map((o) => {
+        if (o.id !== selectedObjectId || (o.type !== 'rect' && o.type !== 'ellipse')) return o;
+        return { ...o, fill: neueWerte.fill, stroke: neueWerte.stroke, strokeWidth: neueWerte.strokeWidth };
+      }));
+    }
+  };
+
+  // Double-Click auf ein Text-Objekt → Textarea-Overlay öffnen
+  const handleTextDblClick = (konvaEvent, object) => {
+    const textNode  = konvaEvent.target;
+    const stage     = textNode.getStage();
+    const container = stage.container();
+    const cRect     = container.getBoundingClientRect();
+    const absPos    = textNode.getAbsolutePosition();
+    setTextBearbeiten({
+      id:      object.id,
+      screenX: cRect.left + absPos.x,
+      screenY: cRect.top  + absPos.y,
+      text:    object.text || '',
+      fontSize: object.fontSize || 14,
+      color:   object.color   || '#1f2937',
+      bold:    object.bold    || false,
+      italic:  object.italic  || false,
+    });
+  };
+
+  const handleTextBearbeitenBlur = () => {
+    if (textBearbeiten) {
+      if (textBearbeiten.text.trim()) {
+        handleUpdateObject(textBearbeiten.id, { text: textBearbeiten.text });
+      } else {
+        // Leere Text-Objekte sofort löschen
+        handleDeleteObject(textBearbeiten.id);
+      }
+      setTextBearbeiten(null);
     }
   };
 
@@ -214,6 +265,49 @@ export default function Editor({ initialTemplate = null }) {
         setPfeilStart(null);
         setActiveTool('select');
       }
+      return;
+    }
+
+    if (activeTool === 'text') {
+      const id = makeId();
+      const opts = toolOptions.text;
+      const neuesObjekt = {
+        id, type: 'text', text: '',
+        fontSize: opts.fontSize,
+        color:    opts.color,
+        bold:     (opts.style || []).includes('bold'),
+        italic:   (opts.style || []).includes('italic'),
+      };
+      setObjects((prev) => [...prev, neuesObjekt]);
+      setKeyframes((prev) => prev.map((kf, i) => i === activeFrame
+        ? { ...kf, positions: { ...kf.positions, [id]: { x: pos.x, y: pos.y } } }
+        : kf));
+      setSelectedObjectId(id);
+      setActiveTool('select');
+      // Sofort Text-Editor öffnen
+      const container = e.target.getStage().container();
+      const cRect = container.getBoundingClientRect();
+      setTextBearbeiten({
+        id, screenX: cRect.left + pos.x, screenY: cRect.top + pos.y,
+        text: '', fontSize: opts.fontSize, color: opts.color,
+        bold: (opts.style || []).includes('bold'),
+        italic: (opts.style || []).includes('italic'),
+      });
+      return;
+    }
+
+    if (activeTool === 'rect' || activeTool === 'ellipse') {
+      const id = makeId();
+      const opts = toolOptions.shape;
+      setObjects((prev) => [...prev, {
+        id, type: activeTool, width: 120, height: 80,
+        fill: opts.fill, stroke: opts.stroke, strokeWidth: opts.strokeWidth,
+      }]);
+      setKeyframes((prev) => prev.map((kf, i) => i === activeFrame
+        ? { ...kf, positions: { ...kf.positions, [id]: { x: pos.x, y: pos.y } } }
+        : kf));
+      setSelectedObjectId(id);
+      setActiveTool('select');
       return;
     }
 
@@ -348,6 +442,10 @@ export default function Editor({ initialTemplate = null }) {
   // Cursor-Stil abhängig vom Werkzeug
   const cursorStil = isPfeilWerkzeug
     ? pfeilStart ? 'crosshair' : 'cell'
+    : activeTool === 'text'
+    ? 'text'
+    : activeTool === 'rect' || activeTool === 'ellipse'
+    ? 'crosshair'
     : pendingPlacement
     ? 'copy'
     : 'default';
@@ -419,6 +517,7 @@ export default function Editor({ initialTemplate = null }) {
           </div>
 
           <Stage
+            ref={stageRef}
             width={FELD_BREITE}
             height={FELD_HOEHE}
             className="editor-stage"
@@ -452,6 +551,8 @@ export default function Editor({ initialTemplate = null }) {
                     onDragMove={updateObjectPosition}
                     onDragEnd={updateObjectPosition}
                     onUpdateObject={handleUpdateObject}
+                    onTextEdit={handleTextDblClick}
+                    isTextEditing={textBearbeiten?.id === obj.id}
                   />
                 );
               })}
@@ -497,6 +598,49 @@ export default function Editor({ initialTemplate = null }) {
         onPlay={handlePlay}
         isPlaying={isPlaying}
       />
+
+      {/* Text-Inline-Editor: erscheint über dem Canvas an der Klickposition */}
+      {textBearbeiten && (
+        <textarea
+          style={{
+            position:   'fixed',
+            left:       textBearbeiten.screenX,
+            top:        textBearbeiten.screenY,
+            minWidth:   120,
+            fontSize:   textBearbeiten.fontSize + 'px',
+            fontWeight: textBearbeiten.bold   ? 'bold'   : 'normal',
+            fontStyle:  textBearbeiten.italic ? 'italic' : 'normal',
+            color:      textBearbeiten.color,
+            fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+            lineHeight: '1.2',
+            border:     '1.5px dashed #2563eb',
+            background: 'rgba(255,255,255,0.96)',
+            padding:    '2px 6px',
+            outline:    'none',
+            resize:     'none',
+            zIndex:     200,
+            overflow:   'hidden',
+            whiteSpace: 'pre',
+          }}
+          rows={1}
+          value={textBearbeiten.text}
+          onChange={(e) =>
+            setTextBearbeiten((prev) => ({ ...prev, text: e.target.value }))
+          }
+          onBlur={handleTextBearbeitenBlur}
+          onKeyDown={(e) => {
+            e.stopPropagation(); // Entf-Taste soll nicht das Objekt löschen
+            if (e.key === 'Escape') {
+              setTextBearbeiten(null);
+            } else if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleTextBearbeitenBlur();
+            }
+          }}
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+        />
+      )}
     </div>
   );
 }

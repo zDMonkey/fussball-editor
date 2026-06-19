@@ -1,4 +1,5 @@
-import { Group, Image, Rect, Arrow, Shape, Circle, Line } from 'react-konva';
+import { useRef } from 'react';
+import { Group, Image, Rect, Arrow, Shape, Circle, Line, Text, Ellipse } from 'react-konva';
 import { useImage } from '../../hooks/useImage';
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
@@ -10,7 +11,6 @@ function spielerIconPfad(object) {
   return `/assets/players/spieler_${object.pose || 'stehen'}_${team}.svg`;
 }
 
-// Quadratische Bézierkurve als Polygonzug approximieren (für unsichtbares Klickziel)
 function bezierPunkte(x0, y0, cx, cy, x1, y1, schritte = 16) {
   const pts = [];
   for (let i = 0; i <= schritte; i++) {
@@ -21,7 +21,6 @@ function bezierPunkte(x0, y0, cx, cy, x1, y1, schritte = 16) {
   return pts;
 }
 
-// Geschlängelte Sinuslinie als Polygonzug
 function wellenPunkte(x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1;
   const len = Math.sqrt(dx * dx + dy * dy);
@@ -38,7 +37,7 @@ function wellenPunkte(x1, y1, x2, y2) {
   return pts;
 }
 
-// ── Handle-Kreise ─────────────────────────────────────────────────────────────
+// ── Pfeil-Handles ─────────────────────────────────────────────────────────────
 
 function PfeilHandle({ x, y, farbe = '#2563eb', onMove }) {
   return (
@@ -47,8 +46,8 @@ function PfeilHandle({ x, y, farbe = '#2563eb', onMove }) {
       fill="#fff" stroke={farbe} strokeWidth={2}
       shadowColor="rgba(0,0,0,0.25)" shadowBlur={4}
       draggable hitStrokeWidth={16}
-      onClick={(e) => e.cancelBubble = true}
-      onTap={(e) => e.cancelBubble = true}
+      onClick={(e) => { e.cancelBubble = true; }}
+      onTap={(e) => { e.cancelBubble = true; }}
       onDragMove={(e) => { e.cancelBubble = true; onMove(e.target.x(), e.target.y()); }}
       onDragEnd={(e)  => { e.cancelBubble = true; onMove(e.target.x(), e.target.y()); }}
     />
@@ -84,6 +83,73 @@ function EquipmentBild({ object, isSelected, common, w, h }) {
   );
 }
 
+// ── Text-Objekt ───────────────────────────────────────────────────────────────
+
+function TextObjekt({ object, isSelected, common, onDblClick, isEditing }) {
+  const textRef = useRef(null);
+  const { text = 'Text', fontSize = 14, color = '#1f2937', bold, italic } = object;
+  const fontStyle = [bold && 'bold', italic && 'italic'].filter(Boolean).join(' ') || 'normal';
+
+  return (
+    <Group {...common}>
+      <Text
+        ref={textRef}
+        text={text || ' '}
+        fontSize={fontSize}
+        fill={color}
+        fontStyle={fontStyle}
+        fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        visible={!isEditing}
+        onDblClick={(e) => { e.cancelBubble = true; onDblClick?.(e); }}
+        onDblTap={(e)   => { e.cancelBubble = true; onDblClick?.(e); }}
+      />
+      {isSelected && !isEditing && (
+        <Rect
+          x={-4} y={-4}
+          width={(textRef.current?.width()  || fontSize * 4) + 8}
+          height={(textRef.current?.height() || fontSize + 4) + 8}
+          stroke="#fbbf24" strokeWidth={2} fill="transparent" dash={[4, 4]}
+          listening={false}
+        />
+      )}
+    </Group>
+  );
+}
+
+// ── Form-Objekt (Rechteck / Ellipse) ─────────────────────────────────────────
+
+function FormObjekt({ object, isSelected, common }) {
+  const { type, width = 120, height = 80, fill = 'transparent', stroke = '#1f2937', strokeWidth = 2 } = object;
+  const pad = 4;
+
+  return (
+    <Group {...common}>
+      {type === 'rect' ? (
+        <Rect
+          width={width} height={height}
+          offsetX={width / 2} offsetY={height / 2}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth}
+          hitStrokeWidth={8}
+        />
+      ) : (
+        <Ellipse
+          radiusX={width / 2} radiusY={height / 2}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth}
+          hitStrokeWidth={8}
+        />
+      )}
+      {isSelected && (
+        <Rect
+          x={-width / 2 - pad} y={-height / 2 - pad}
+          width={width + pad * 2} height={height + pad * 2}
+          stroke="#fbbf24" strokeWidth={2} fill="transparent" dash={[4, 4]}
+          listening={false}
+        />
+      )}
+    </Group>
+  );
+}
+
 // ── Pfeil-Objekt ──────────────────────────────────────────────────────────────
 
 function PfeilObjekt({ object, isSelected, onSelect, onUpdateObject }) {
@@ -96,16 +162,13 @@ function PfeilObjekt({ object, isSelected, onSelect, onUpdateObject }) {
   const pGr      = hatPfeil ? (arrowSize || 8) : 0;
   const dash     = lineStyle === 'dashed' ? [12, 6] : undefined;
 
-  // Klick-Handler für die Selektion
   const klickProps = {
     onClick: (e) => { e.cancelBubble = true; onSelect(id); },
     onTap:   (e) => { e.cancelBubble = true; onSelect(id); },
   };
 
-  // Gruppe verschieben: Offset am DragEnd auf points anwenden, dann auf (0,0) zurücksetzen
   const handleGroupDragEnd = (e) => {
-    const gx = e.target.x();
-    const gy = e.target.y();
+    const gx = e.target.x(), gy = e.target.y();
     e.target.position({ x: 0, y: 0 });
     onUpdateObject(id, {
       points: [points[0]+gx, points[1]+gy, points[2]+gx, points[3]+gy],
@@ -113,7 +176,6 @@ function PfeilObjekt({ object, isSelected, onSelect, onUpdateObject }) {
     });
   };
 
-  // Handles für ausgewählten Zustand
   const handles = isSelected && (
     <>
       <PfeilHandle x={points[0]} y={points[1]}
@@ -127,15 +189,12 @@ function PfeilObjekt({ object, isSelected, onSelect, onUpdateObject }) {
     </>
   );
 
-  // ── Gebogene Bézierkurve ───────────────────────────────────────────────────
   if (curved && controlPoint) {
     const approxPts = bezierPunkte(
       points[0], points[1], controlPoint.x, controlPoint.y, points[2], points[3]
     );
-
     return (
       <Group x={0} y={0} draggable onDragEnd={handleGroupDragEnd}>
-        {/* Sichtbare Kurve (kein Hit-Testing) */}
         <Shape
           sceneFunc={(ctx, shape) => {
             ctx.beginPath();
@@ -143,53 +202,28 @@ function PfeilObjekt({ object, isSelected, onSelect, onUpdateObject }) {
             ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, points[2], points[3]);
             ctx.strokeShape(shape);
           }}
-          stroke={farbe} strokeWidth={sw} dash={dash}
-          listening={false}
+          stroke={farbe} strokeWidth={sw} dash={dash} listening={false}
         />
-        {/* Unsichtbare breite Linie als Klickziel — opacity=0 ist in Konva trotzdem hit-testbar */}
-        <Line
-          points={approxPts}
-          stroke="#000" strokeWidth={1} opacity={0} hitStrokeWidth={24}
-          {...klickProps}
-        />
-        {/* Pfeilspitze */}
+        <Line points={approxPts} stroke="#000" strokeWidth={1} opacity={0} hitStrokeWidth={24} {...klickProps} />
         {hatPfeil && (
-          <Arrow
-            points={[controlPoint.x, controlPoint.y, points[2], points[3]]}
-            pointerLength={pGr} pointerWidth={pGr}
-            fill={farbe} stroke={farbe} strokeWidth={0} listening={false}
-          />
+          <Arrow points={[controlPoint.x, controlPoint.y, points[2], points[3]]}
+            pointerLength={pGr} pointerWidth={pGr} fill={farbe} stroke={farbe} strokeWidth={0} listening={false} />
         )}
-        {/* Kontrollpunkt-Hilfslinie wenn ausgewählt */}
         {isSelected && (
-          <Line
-            points={[points[0], points[1], controlPoint.x, controlPoint.y, points[2], points[3]]}
-            stroke="#f59e0b" strokeWidth={1} dash={[4, 4]} opacity={0.5} listening={false}
-          />
+          <Line points={[points[0], points[1], controlPoint.x, controlPoint.y, points[2], points[3]]}
+            stroke="#f59e0b" strokeWidth={1} dash={[4, 4]} opacity={0.5} listening={false} />
         )}
         {handles}
       </Group>
     );
   }
 
-  // ── Geschlängelte Sinuslinie ───────────────────────────────────────────────
   if (lineStyle === 'wavy') {
     const wellePts = wellenPunkte(points[0], points[1], points[2], points[3]);
-
     return (
       <Group x={0} y={0} draggable onDragEnd={handleGroupDragEnd}>
-        {/* Sichtbare Wellenlinie (kein Hit-Testing) */}
-        <Line
-          points={wellePts}
-          stroke={farbe} strokeWidth={sw}
-          listening={false}
-        />
-        {/* Unsichtbare breite gerade Linie als Klickziel */}
-        <Line
-          points={points}
-          stroke="#000" strokeWidth={1} opacity={0} hitStrokeWidth={24}
-          {...klickProps}
-        />
+        <Line points={wellePts} stroke={farbe} strokeWidth={sw} listening={false} />
+        <Line points={points} stroke="#000" strokeWidth={1} opacity={0} hitStrokeWidth={24} {...klickProps} />
         {hatPfeil && (
           <Arrow points={points} pointerLength={pGr} pointerWidth={pGr}
             fill={farbe} stroke={farbe} strokeWidth={0} listening={false} />
@@ -199,16 +233,11 @@ function PfeilObjekt({ object, isSelected, onSelect, onUpdateObject }) {
     );
   }
 
-  // ── Gerader Pfeil ──────────────────────────────────────────────────────────
   return (
     <Group x={0} y={0} draggable onDragEnd={handleGroupDragEnd}>
-      <Arrow
-        points={points}
-        pointerLength={pGr} pointerWidth={pGr}
+      <Arrow points={points} pointerLength={pGr} pointerWidth={pGr}
         fill={farbe} stroke={farbe} strokeWidth={sw} dash={dash}
-        hitStrokeWidth={24}
-        {...klickProps}
-      />
+        hitStrokeWidth={24} {...klickProps} />
       {handles}
     </Group>
   );
@@ -229,7 +258,10 @@ const EQUIPMENT_GROESSEN = {
   ball:      { w: 40, h: 40 },
 };
 
-export default function PlacedObject({ object, isSelected, onSelect, onDragMove, onDragEnd, onUpdateObject }) {
+export default function PlacedObject({
+  object, isSelected, onSelect, onDragMove, onDragEnd,
+  onUpdateObject, onTextEdit, isTextEditing,
+}) {
   const handleDrag    = (e) => onDragMove?.(object.id, e.target.x(), e.target.y());
   const handleDragEnd = (e) => onDragEnd?.(object.id, e.target.x(), e.target.y());
 
@@ -249,12 +281,24 @@ export default function PlacedObject({ object, isSelected, onSelect, onDragMove,
   if (object.type === 'arrow') {
     return (
       <PfeilObjekt
-        object={object}
-        isSelected={isSelected}
-        onSelect={onSelect}
-        onUpdateObject={onUpdateObject}
+        object={object} isSelected={isSelected}
+        onSelect={onSelect} onUpdateObject={onUpdateObject}
       />
     );
+  }
+
+  if (object.type === 'text') {
+    return (
+      <TextObjekt
+        object={object} isSelected={isSelected} common={common}
+        isEditing={isTextEditing}
+        onDblClick={(e) => onTextEdit?.(e, object)}
+      />
+    );
+  }
+
+  if (object.type === 'rect' || object.type === 'ellipse') {
+    return <FormObjekt object={object} isSelected={isSelected} common={common} />;
   }
 
   const g = EQUIPMENT_GROESSEN[object.type] || { w: 40, h: 40 };
