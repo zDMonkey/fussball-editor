@@ -222,6 +222,36 @@ body {
   padding: 16px;
 }
 
+.editor-reference-panel {
+  width: 320px;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  border-left: 1px solid #e5e7eb;
+  overflow-y: auto;
+}
+
+.editor-reference-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.editor-reference-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: #ffffff;
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.08);
+}
+
 /* ── Properties-Panel ────────────────────────────────────────── */
 
 .properties-panel {
@@ -794,6 +824,18 @@ body {
   .app-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .editor-haupt-zeile {
+    flex-direction: column;
+  }
+
+  .editor-reference-panel,
+  .properties-panel {
+    width: 100%;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid #e5e7eb;
   }
 
   .library-hero {

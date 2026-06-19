@@ -11,6 +11,7 @@ import { buildExercisePayload } from '../../lib/exercisePersistence';
 
 const FELD_BREITE  = 680;
 const FELD_HOEHE   = 1050;
+const THUMBNAIL_BASE_URL = (import.meta.env.VITE_THUMBNAIL_BASE_URL || '').replace(/\/$/, '');
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10);
@@ -31,6 +32,19 @@ function getInitialEditorState(initialTemplate) {
   return { objects, keyframes };
 }
 
+function resolveReferenceImage(meta = {}) {
+  const thumbnailUrl = meta.thumbnailUrl ?? '';
+  const thumbnailKey = meta.thumbnailKey ?? '';
+
+  if (thumbnailUrl) return thumbnailUrl;
+  if (!thumbnailKey || !THUMBNAIL_BASE_URL) return '';
+  if (thumbnailKey.startsWith('http://') || thumbnailKey.startsWith('https://') || thumbnailKey.startsWith('/')) {
+    return thumbnailKey;
+  }
+
+  return `${THUMBNAIL_BASE_URL}/${thumbnailKey.replace(/^\//, '')}`;
+}
+
 const STANDARD_TOOL_OPTIONS = {
   arrow: { curve: 'straight', lineStyle: 'normal', lineEnd: 'arrow', color: '#1f2937', width: 2, arrowSize: 8 },
   text:  { style: [], fontSize: 14, color: '#1f2937' },
@@ -41,6 +55,7 @@ export default function Editor({ initialTemplate = null }) {
   const initialState = getInitialEditorState(initialTemplate);
   const initialMeta = initialTemplate?.meta ?? {};
   const initialFieldTemplate = initialTemplate?.editor?.fieldTemplate ?? 'vollfeld_hoch';
+  const referenceImageUrl = resolveReferenceImage(initialMeta);
 
   const [objects, setObjects]         = useState(initialState.objects);
   const [keyframes, setKeyframes]     = useState(initialState.keyframes);
@@ -444,6 +459,17 @@ export default function Editor({ initialTemplate = null }) {
             />
           )}
         </div>
+
+        {referenceImageUrl && (
+          <aside className="editor-reference-panel">
+            <div className="editor-reference-title">Referenz</div>
+            <img
+              className="editor-reference-image"
+              src={referenceImageUrl}
+              alt={`Referenz für ${title || 'die Übung'}`}
+            />
+          </aside>
+        )}
 
         <PropertiesPanel
           activeTool={activeTool}
