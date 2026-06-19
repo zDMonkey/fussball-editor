@@ -93,7 +93,7 @@ export default function App() {
             Meine Übungen
           </NavLink>
           <NavLink to="/pdf-upload" className={navClassName}>
-            PDF Upload
+            Import
           </NavLink>
           {currentUser ? (
             <button className="app-nav-link app-nav-button" type="button" onClick={handleLogout}>

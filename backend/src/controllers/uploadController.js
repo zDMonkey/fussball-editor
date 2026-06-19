@@ -5,11 +5,31 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const UPLOAD_BUCKET = 'football-exercises-pdf-027825871321-eu-north-1-an';
 const AWS_REGION = process.env.AWS_REGION || 'eu-north-1';
 const PRESIGN_EXPIRES_IN = 900;
+const ALLOWED_UPLOAD_TYPES = new Map([
+  ['.pdf', 'application/pdf'],
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+]);
 
 const s3Client = new S3Client({ region: AWS_REGION });
 
-function isPdfUpload(filename = '', contentType = '') {
-  return contentType === 'application/pdf' && filename.toLowerCase().endsWith('.pdf');
+function getFileExtension(filename = '') {
+  const normalized = filename.toLowerCase();
+
+  if (normalized.endsWith('.jpeg')) return '.jpeg';
+  if (normalized.endsWith('.jpg')) return '.jpg';
+  if (normalized.endsWith('.png')) return '.png';
+  if (normalized.endsWith('.pdf')) return '.pdf';
+
+  return '';
+}
+
+function isSupportedUpload(filename = '', contentType = '') {
+  const extension = getFileExtension(filename);
+  const expectedContentType = ALLOWED_UPLOAD_TYPES.get(extension);
+
+  return Boolean(expectedContentType) && contentType === expectedContentType;
 }
 
 function sanitizeFilename(filename) {
@@ -28,7 +48,7 @@ function buildObjectKey(filename) {
   const day = String(now.getUTCDate()).padStart(2, '0');
   const safeFilename = sanitizeFilename(filename);
 
-  return `uploads/pdfs/${year}/${month}/${day}/${randomUUID()}-${safeFilename}`;
+  return `uploads/files/${year}/${month}/${day}/${randomUUID()}-${safeFilename}`;
 }
 
 export async function createPresignedUpload(req, res) {
@@ -38,8 +58,8 @@ export async function createPresignedUpload(req, res) {
     return res.status(400).json({ error: 'filename und contentType sind erforderlich.' });
   }
 
-  if (!isPdfUpload(filename, contentType)) {
-    return res.status(400).json({ error: 'Es sind nur PDF-Dateien erlaubt.' });
+  if (!isSupportedUpload(filename, contentType)) {
+    return res.status(400).json({ error: 'Erlaubt sind nur PDF-, PNG- und JPEG-Dateien.' });
   }
 
   const objectKey = buildObjectKey(filename);

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { createUploadPresign, uploadFileToS3 } from '../lib/uploadApi';
+import { createUploadPresign, resolveUploadContentType, uploadFileToS3 } from '../lib/uploadApi';
 
-function isPdfFile(file) {
-  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+function isSupportedImportFile(file) {
+  return Boolean(resolveUploadContentType(file));
 }
 
 function formatFileSize(bytes) {
@@ -12,11 +12,13 @@ function formatFileSize(bytes) {
 }
 
 function createUploadEntry(file) {
+  const isSupported = isSupportedImportFile(file);
+
   return {
     id: `${file.name}-${file.lastModified}-${file.size}`,
     file,
-    status: isPdfFile(file) ? 'Bereit' : 'Ungültiger Dateityp',
-    message: isPdfFile(file) ? '' : 'Nur PDF-Dateien sind erlaubt.',
+    status: isSupported ? 'Bereit' : 'Ungültiger Dateityp',
+    message: isSupported ? '' : 'Erlaubt sind PDF-, PNG- und JPEG-Dateien.',
     objectKey: '',
   };
 }
@@ -26,7 +28,7 @@ export default function PdfUploadPage() {
   const [isUploading, setIsUploading] = useState(false);
 
   const validUploads = useMemo(
-    () => uploads.filter((entry) => isPdfFile(entry.file)),
+    () => uploads.filter((entry) => isSupportedImportFile(entry.file)),
     [uploads]
   );
 
@@ -45,10 +47,11 @@ export default function PdfUploadPage() {
     for (const entry of validUploads) {
       try {
         updateUpload(entry.id, { status: 'Signierung läuft', message: '' });
+        const contentType = resolveUploadContentType(entry.file);
 
         const presign = await createUploadPresign({
           filename: entry.file.name,
-          contentType: 'application/pdf',
+          contentType,
         });
 
         updateUpload(entry.id, {
@@ -56,7 +59,7 @@ export default function PdfUploadPage() {
           objectKey: presign.objectKey,
         });
 
-        await uploadFileToS3(presign.uploadUrl, entry.file);
+        await uploadFileToS3(presign.uploadUrl, entry.file, contentType);
 
         updateUpload(entry.id, {
           status: 'Hochgeladen – Verarbeitung läuft',
@@ -78,21 +81,21 @@ export default function PdfUploadPage() {
       <div className="library-hero">
         <div>
           <p className="library-eyebrow">Direktimport</p>
-          <h2>PDF Upload</h2>
+          <h2>Datei-Import</h2>
           <p className="library-intro">
-            Wähle mehrere PDFs aus und lade sie direkt nach S3 hoch. Die bestehende Import-Pipeline startet danach automatisch.
+            Wähle mehrere Übungsdateien aus und lade sie direkt nach S3 hoch. Die bestehende Import-Pipeline startet danach automatisch.
           </p>
         </div>
 
         <div className="library-search pdf-upload-panel">
           <label className="library-search-label" htmlFor="pdf-upload-input">
-            PDF-Dateien
+            Dateien auswählen
           </label>
           <input
             id="pdf-upload-input"
             className="pdf-upload-input"
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg"
             multiple
             onChange={handleFileChange}
           />
@@ -108,7 +111,7 @@ export default function PdfUploadPage() {
       </div>
 
       {uploads.length === 0 && (
-        <div className="library-state">Noch keine Dateien ausgewählt.</div>
+        <div className="library-state">Noch keine Dateien ausgewählt. Erlaubt sind PDF, PNG, JPG und JPEG.</div>
       )}
 
       {uploads.length > 0 && (
