@@ -18,15 +18,28 @@ function leeresKeyframe() {
   return { id: makeId(), positions: {} };
 }
 
+function getInitialEditorState(initialTemplate) {
+  const choreography = initialTemplate?.choreography;
+  const objects = Array.isArray(choreography?.objects) ? choreography.objects : [];
+  const keyframes =
+    Array.isArray(choreography?.keyframes) && choreography.keyframes.length > 0
+      ? choreography.keyframes
+      : [leeresKeyframe()];
+
+  return { objects, keyframes };
+}
+
 const STANDARD_TOOL_OPTIONS = {
   arrow: { curve: 'straight', lineStyle: 'normal', lineEnd: 'arrow', color: '#1f2937', width: 2, arrowSize: 8 },
   text:  { style: [], fontSize: 14, color: '#1f2937' },
   shape: { fill: 'transparent', stroke: '#1f2937', strokeWidth: 2 },
 };
 
-export default function Editor() {
-  const [objects, setObjects]         = useState([]);
-  const [keyframes, setKeyframes]     = useState([leeresKeyframe()]);
+export default function Editor({ initialTemplate = null }) {
+  const initialState = getInitialEditorState(initialTemplate);
+
+  const [objects, setObjects]         = useState(initialState.objects);
+  const [keyframes, setKeyframes]     = useState(initialState.keyframes);
   const [activeFrame, setActiveFrame] = useState(0);
 
   const [activeTool, setActiveTool]             = useState('select');

@@ -29,7 +29,7 @@ export async function listExercises(req, res) {
     `
     SELECT
       e.id, e.title, e.description, e.age_group, e.duration_minutes,
-      e.field_template, e.thumbnail_url, e.share_enabled, e.share_token,
+      e.field_template, e.thumbnail_url, e.thumbnail_key, e.share_enabled, e.share_token,
       e.export_status, e.export_url, e.created_at, e.updated_at,
       u.display_name AS created_by_name,
       COALESCE(
@@ -61,7 +61,7 @@ export async function getExercise(req, res) {
 }
 
 export async function createExercise(req, res) {
-  const { title, description, age_group, duration_minutes, field_template, choreography, category_ids } = req.body;
+  const { title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, category_ids } = req.body;
 
   if (!title) {
     return res.status(400).json({ error: 'Titel ist erforderlich.' });
@@ -73,10 +73,10 @@ export async function createExercise(req, res) {
 
     const { rows } = await client.query(
       `INSERT INTO exercises
-        (title, description, age_group, duration_minutes, field_template, choreography, created_by)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 'vollfeld_hoch'), COALESCE($6, '{"objects": [], "keyframes": []}'), $7)
+        (title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, created_by)
+       VALUES ($1, $2, $3, $4, COALESCE($5, 'vollfeld_hoch'), COALESCE($6, '{"objects": [], "keyframes": []}'), $7, $8)
        RETURNING *`,
-      [title, description, age_group, duration_minutes, field_template, choreography, req.user.id]
+      [title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, req.user.id]
     );
 
     const exercise = rows[0];
@@ -101,7 +101,7 @@ export async function createExercise(req, res) {
 
 export async function updateExercise(req, res) {
   const { id } = req.params;
-  const { title, description, age_group, duration_minutes, field_template, choreography } = req.body;
+  const { title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key } = req.body;
 
   const { rows } = await pool.query(
     `UPDATE exercises SET
@@ -110,10 +110,11 @@ export async function updateExercise(req, res) {
        age_group = COALESCE($3, age_group),
        duration_minutes = COALESCE($4, duration_minutes),
        field_template = COALESCE($5, field_template),
-       choreography = COALESCE($6, choreography)
-     WHERE id = $7
+       choreography = COALESCE($6, choreography),
+       thumbnail_key = COALESCE($7, thumbnail_key)
+     WHERE id = $8
      RETURNING *`,
-    [title, description, age_group, duration_minutes, field_template, choreography, id]
+    [title, description, age_group, duration_minutes, field_template, choreography, thumbnail_key, id]
   );
 
   if (!rows[0]) {
@@ -159,7 +160,7 @@ export async function getSharedExercise(req, res) {
 
   const { rows } = await pool.query(
     `SELECT id, title, description, age_group, duration_minutes,
-            field_template, choreography, export_url, export_status
+            field_template, choreography, thumbnail_key, export_url, export_status
      FROM exercises
      WHERE share_token = $1 AND share_enabled = true`,
     [token]

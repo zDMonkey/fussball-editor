@@ -1,0 +1,2 @@
+ALTER TABLE exercises
+ADD COLUMN IF NOT EXISTS thumbnail_key TEXT;
