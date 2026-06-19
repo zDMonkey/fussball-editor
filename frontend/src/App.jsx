@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Editor from './components/editor/Editor';
 import ExerciseLibraryPage from './pages/ExerciseLibraryPage';
 import MyExercisesPage from './pages/MyExercisesPage';
@@ -26,6 +26,7 @@ function ProtectedRoute({ isAuthenticated, authReady, children }) {
 }
 
 export default function App() {
+  const navigate = useNavigate();
   const [currentEditorTemplate, setCurrentEditorTemplate] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -74,6 +75,20 @@ export default function App() {
     setCurrentEditorTemplate(null);
   };
 
+  const handleNewEditor = () => {
+    setCurrentEditorTemplate(null);
+    navigate('/editor');
+  };
+
+  const editorInstanceKey = currentEditorTemplate
+    ? [
+        currentEditorTemplate.id ?? 'template',
+        currentEditorTemplate.source?.type ?? 'source',
+        currentEditorTemplate.source?.externalId ?? 'external',
+        currentEditorTemplate.meta?.title ?? 'title',
+      ].join(':')
+    : 'empty-editor';
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -89,6 +104,9 @@ export default function App() {
           <NavLink to="/editor" className={navClassName}>
             Editor
           </NavLink>
+          <button className="app-nav-link app-nav-button" type="button" onClick={handleNewEditor}>
+            Leere Übung
+          </button>
           <NavLink to="/meine-uebungen" className={navClassName}>
             Meine Übungen
           </NavLink>
@@ -115,7 +133,7 @@ export default function App() {
             path="/editor"
             element={(
               <ProtectedRoute isAuthenticated={Boolean(currentUser)} authReady={authReady}>
-                <Editor initialTemplate={currentEditorTemplate} />
+                <Editor key={editorInstanceKey} initialTemplate={currentEditorTemplate} />
               </ProtectedRoute>
             )}
           />

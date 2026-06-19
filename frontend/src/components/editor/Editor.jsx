@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Stage, Layer } from 'react-konva';
+import { useNavigate } from 'react-router-dom';
 import Toolbar from './Toolbar';
 import ElementPicker from './ElementPicker';
 import PlacedObject from './PlacedObject';
@@ -57,10 +58,17 @@ const STANDARD_TOOL_OPTIONS = {
 };
 
 export default function Editor({ initialTemplate = null }) {
+  const navigate = useNavigate();
   const initialState = getInitialEditorState(initialTemplate);
   const initialMeta = initialTemplate?.meta ?? {};
   const initialFieldTemplate = initialTemplate?.editor?.fieldTemplate ?? 'vollfeld_hoch';
   const referenceImageUrl = resolveReferenceImage(initialMeta);
+  const openedTemplateTitle = initialMeta.title?.trim() ?? '';
+  const templateSourceLabel = initialTemplate?.source?.type === 'local-backend'
+    ? 'Gespeicherte Übung'
+    : initialTemplate?.source?.type === 'external-search'
+    ? 'Bibliotheksvorlage'
+    : 'Vorlage';
 
   const [objects, setObjects]         = useState(initialState.objects);
   const [keyframes, setKeyframes]     = useState(initialState.keyframes);
@@ -454,6 +462,9 @@ export default function Editor({ initialTemplate = null }) {
     <div className="editor-layout">
       <div className="editor-document-bar">
         <div className="editor-document-fields">
+          <button className="editor-back-button" type="button" onClick={() => navigate(-1)}>
+            Zurück
+          </button>
           <input
             className="editor-document-title"
             type="text"
@@ -486,6 +497,13 @@ export default function Editor({ initialTemplate = null }) {
           </button>
         </div>
       </div>
+
+      {openedTemplateTitle && (
+        <div className="editor-template-banner">
+          <span className="editor-template-badge">{templateSourceLabel}</span>
+          <span className="editor-template-text">Geöffnet aus: {openedTemplateTitle}</span>
+        </div>
+      )}
 
       <div className="editor-description-bar">
         <textarea
