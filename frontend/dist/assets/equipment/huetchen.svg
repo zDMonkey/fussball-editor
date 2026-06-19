@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 32">
-  <!-- Boden-Ellipse -->
-  <ellipse cx="20" cy="28" rx="16" ry="4" fill="#ea580c" stroke="#374151" stroke-width="1"/>
-  <!-- Kuppel-Form des Hütchens -->
-  <path d="M4,28 Q4,14 20,9 Q36,14 36,28 Z" fill="#f97316" stroke="#374151" stroke-width="1"/>
-  <!-- Weißer Mittelstreifen -->
-  <path d="M9,23 Q20,19 31,23" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
-</svg>
