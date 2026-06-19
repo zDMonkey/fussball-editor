@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import exerciseRoutes from './routes/exercises.js';
 import categoryRoutes from './routes/categories.js';
+import uploadRoutes from './routes/uploads.js';
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:8080',
+  'http://127.0.0.1:8080',
   process.env.FRONTEND_URL,
 ].filter(Boolean));
 
@@ -24,6 +26,7 @@ const corsOptions = {
       return callback(null, true);
     }
 
+    console.error('Blocked CORS origin:', origin);
     return callback(new Error('CORS: Origin nicht erlaubt.'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -39,6 +42,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // Zentrale Fehlerbehandlung
 app.use((err, _req, res, _next) => {

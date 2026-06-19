@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import Editor from './components/editor/Editor';
 import ExerciseLibraryPage from './pages/ExerciseLibraryPage';
 import MyExercisesPage from './pages/MyExercisesPage';
+import PdfUploadPage from './pages/PdfUploadPage';
 
 function navClassName({ isActive }) {
   return `app-nav-link${isActive ? ' active' : ''}`;
@@ -26,6 +27,9 @@ export default function App() {
           <NavLink to="/meine-uebungen" className={navClassName}>
             Meine Übungen
           </NavLink>
+          <NavLink to="/pdf-upload" className={navClassName}>
+            PDF Upload
+          </NavLink>
           <NavLink to="/uebungsbibliothek" className={navClassName}>
             Übungsbibliothek
           </NavLink>
@@ -40,6 +44,7 @@ export default function App() {
             path="/meine-uebungen"
             element={<MyExercisesPage onOpenInEditor={setCurrentEditorTemplate} />}
           />
+          <Route path="/pdf-upload" element={<PdfUploadPage />} />
           <Route
             path="/uebungsbibliothek"
             element={<ExerciseLibraryPage onOpenInEditor={setCurrentEditorTemplate} />}
