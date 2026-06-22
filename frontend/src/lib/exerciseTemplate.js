@@ -19,6 +19,9 @@ function normalizeChoreography(value) {
     return createEmptyChoreography();
   }
 
+  // Editor-kompatibler Minimalvertrag:
+  // - objects immer Array
+  // - keyframes immer mindestens ein Frame
   return {
     objects: Array.isArray(value.objects) ? value.objects : [],
     keyframes:
@@ -33,6 +36,8 @@ function normalizeArray(value) {
 }
 
 function extractStoredFocus(exercise = {}) {
+  // Fokus wird fuer lokale Uebungen aktuell ohne separate DB-Spalte in
+  // choreography.meta.focus mitgefuehrt. Das haelt die Persistenz klein.
   return normalizeArray(exercise.focus ?? exercise.choreography?.meta?.focus);
 }
 
@@ -104,6 +109,9 @@ export function mapSearchResultToExerciseTemplate(searchResult = {}) {
   // Importierte Suchtreffer koennen optional einen KI-generierten
   // choreography_draft mitliefern. Falls vorhanden, wird dieser direkt als
   // initialer Editor-Startzustand uebernommen; ansonsten bleibt die Uebung leer.
+  //
+  // Wichtig: choreography_draft ist absichtlich nur ein Startvorschlag und
+  // keine Garantie fuer eine perfekte Auto-Konvertierung aus PDF/Bild.
   return createExerciseTemplate({
     source: {
       type: 'external-search',
@@ -134,7 +142,8 @@ export function mapSearchResultToExerciseTemplate(searchResult = {}) {
 export function mapStoredExerciseToExerciseTemplate(exercise = {}) {
   // Backend-Exercises werden fuer den Editor wieder in das interne
   // Template-Modell zurueckgefuehrt. Entscheidend ist hier, dass die
-  // gespeicherte choreography unveraendert uebernommen wird.
+  // gespeicherte choreography unveraendert uebernommen wird und die lokale
+  // Backend-ID am Template haengen bleibt, damit spaetere Saves per PUT laufen.
   return createExerciseTemplate({
     id: exercise.id ?? null,
     source: {

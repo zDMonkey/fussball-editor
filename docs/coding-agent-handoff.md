@@ -2,11 +2,12 @@
 
 ## Zielbild
 
-Dieses Projekt hat aktuell drei relevante Frontend-Flows:
+Dieses Projekt hat aktuell vier relevante Frontend-Flows:
 
 1. `Übungsbibliothek` lädt externe Suchtreffer aus der AWS-Such-API.
-2. `Meine Übungen` lädt lokal gespeicherte Übungen aus dem Express-/Postgres-Backend.
-3. `Editor` kann beide Quellen als `initialTemplate` öffnen und lokal gespeicherte Dokumente wieder speichern.
+2. `Übungsbibliothek` mischt bei vorhandenem Token zusaetzlich lokale Übungen aus dem Express-/Postgres-Backend dazu.
+3. `Meine Übungen` lädt nur lokal gespeicherte Übungen.
+4. `Editor` kann externe Vorlagen, lokale Übungen und leere Dokumente öffnen und lokal speichern.
 
 ## Zentrales Modell
 
@@ -29,6 +30,23 @@ Das Modell trennt bewusst:
 - lokalem Backend
 - Editor-Hydration
 
+## ExerciseTemplate-Regeln
+
+Wichtige Punkte:
+
+- `source.type = external-search`
+  - fuer Treffer aus der AWS-Suche
+- `source.type = local-backend`
+  - fuer lokal gespeicherte Übungen aus `GET /api/exercises`
+- `source.type = manual`
+  - fuer initial leere Dokumente / interne Defaults
+
+- `choreography` muss immer editor-kompatibel sein:
+  - `objects: []`
+  - `keyframes: [{ id, positions }]`
+
+- `normalizeChoreography(...)` in `exerciseTemplate.js` erzwingt genau diesen Minimalvertrag.
+
 ## Editor-Hydration
 
 Die Editor-Initialisierung sitzt in:
@@ -38,34 +56,47 @@ Die Editor-Initialisierung sitzt in:
 Wichtige Punkte:
 
 - `Editor` akzeptiert optional `initialTemplate`
-- `getInitialEditorState(initialTemplate)` liest daraus nur:
+- `getInitialEditorState(initialTemplate)` liest nur:
   - `choreography.objects`
   - `choreography.keyframes`
-- Die Hydration passiert absichtlich nur beim ersten Render
-- Spaetere Prop-Aenderungen synchronisieren den Editor nicht automatisch nach
+- die Hydration passiert absichtlich nur beim ersten Render
+- spaetere Prop-Aenderungen synchronisieren den Editor nicht automatisch nach
+
+Zusatz fuer Persistenz:
+
+- `getInitialExerciseId(initialTemplate)` zieht die lokale Backend-ID aus:
+  - `initialTemplate.id`
+  - oder bei lokalen Übungen aus `source.externalId` / `source.sourceKey`
+- damit speichert eine geoeffnete lokale Übung spaeter per `PUT` statt erneut per `POST`
 
 ## Öffnen aus der Bibliothek
 
-Externe Treffer:
+Datei:
 
 - [frontend/src/pages/ExerciseLibraryPage.jsx](../frontend/src/pages/ExerciseLibraryPage.jsx)
 
 Flow:
 
-1. Treffer aus AWS-Such-API laden
-2. `mapSearchResultToExerciseTemplate()` aufrufen
-3. Template in `App`-State legen
-4. nach `/editor` navigieren
+1. externe Treffer aus AWS-Such-API laden
+2. falls Token vorhanden:
+   - lokale Übungen via `GET /api/exercises?search=...` laden
+3. beide Quellen in eine gemeinsame Kartenliste mappen
+4. je nach Quelle:
+   - extern: `mapSearchResultToExerciseTemplate()`
+   - lokal: `mapStoredExerciseToExerciseTemplate()`
+5. Template in `App`-State legen
+6. nach `/editor` navigieren
 
 Wichtig:
 
-- Externe Treffer enthalten aktuell keine editierbare Diagrammstruktur
-- Deshalb startet `choreography` dort leer
-- Optional vorhandene `thumbnailKey` / `thumbnailUrl` werden fuer das Referenzpanel genutzt
+- lokale Karten sind `resultType = local`
+- externe Karten sind `resultType = external`
+- lokale Karten koennen geloescht werden
+- externe Karten sind in V1 nicht loeschbar
 
 ## Öffnen aus "Meine Übungen"
 
-Lokale Übungen:
+Datei:
 
 - [frontend/src/pages/MyExercisesPage.jsx](../frontend/src/pages/MyExercisesPage.jsx)
 
@@ -78,12 +109,11 @@ Flow:
 
 Wichtig:
 
-- `GET /api/exercises` muss `choreography` im Response enthalten
-- Ohne diese Spalte startet der Editor beim Reopen leer
+- `GET /api/exercises` muss `id` und `choreography` enthalten
+- ohne `id` waere spaeter kein verlässliches `PUT` moeglich
+- ohne `choreography` startet der Editor beim Reopen leer
 
 ## Speichern im Editor
-
-Speichern ist absichtlich minimal gehalten.
 
 Relevante Dateien:
 
@@ -100,31 +130,147 @@ Flow:
    - `age_group`
    - `duration_minutes`
    - `field_template`
+   - `thumbnail_url`
    - `choreography`
-3. Erstes Speichern:
-   - `POST /api/exercises`
-4. Weitere Saves:
-   - `PUT /api/exercises/:id`
+3. `choreography` enthaelt:
+   - `objects`
+   - `keyframes`
+   - `meta.focus`
+4. Save-Regel:
+   - mit lokaler ID: `PUT /api/exercises/:id`
+   - ohne lokale ID: `POST /api/exercises`
+5. nach erfolgreichem `POST` merkt sich der Editor die neue ID im State
 
-## Thumbnail-Handling
+Wichtig:
 
-Thumbnails werden aktuell nur angezeigt, nicht weiterverarbeitet.
+- externe/AWS-Übungen ohne lokale ID erzeugen beim ersten Speichern bewusst eine neue lokale Übung
+- lokal geoeffnete Übungen sollen nie eine zweite Kopie erzeugen
 
-Bibliothek:
+## Focus / Schwerpunkte
 
-- `thumbnail_key` aus Suchergebnissen
-- URL-Aufloesung ueber `VITE_THUMBNAIL_BASE_URL`
+Es gibt aktuell keine separate `focus`-Spalte im lokalen Backend.
 
-Editor:
+Die pragmatische V1 ist:
 
-- Referenzpanel liest `initialTemplate.meta.thumbnailKey` oder `thumbnailUrl`
+- Fokus im Editor als kommagetrennte Eingabe
+- Persistenz in `choreography.meta.focus`
+- Re-Hydration aus `exercise.choreography.meta.focus`
+- lokale Suche beruecksichtigt:
+  - `title`
+  - `description`
+  - `choreography.meta.focus`
 
-## Wichtige Annahmen
+Das ist bewusst eine KISS-Loesung ohne Migration.
 
-- Login-UI existiert nicht
-- `localStorage.token` muss fuer authentifizierte API-Calls vorhanden sein
-- Das lokale Backend speichert `choreography` in Postgres als `jsonb`
-- Externe Suchtreffer und lokale Übungen nutzen unterschiedliche Ursprungsmodelle, werden aber vor dem Editor beide auf `ExerciseTemplate` vereinheitlicht
+## Thumbnails
+
+Es gibt aktuell zwei Thumbnail-Pfade:
+
+### Externe/importierte Übungen
+
+- kommen aus der AWS-Suche
+- nutzen `thumbnail_key` oder `thumbnail_url`
+- `thumbnail_key` wird im Frontend ueber `VITE_THUMBNAIL_BASE_URL` aufgeloest
+
+### Lokale/editorbasierte Übungen
+
+- beim Speichern wird ein Thumbnail direkt im Browser erzeugt
+- Quelle:
+  - Feld-SVG
+  - plus Konva-Zeichnung darueber
+- Ergebnis:
+  - Data-URL in `thumbnail_url`
+
+Wichtig:
+
+- alte lokal gespeicherte Übungen koennen noch alte/gruene Thumbnails haben
+- nach erneutem Speichern bekommen sie das neue kombinierte Thumbnail
+
+## choreography_draft
+
+Die externe Such-API kann optional spaeter ein Feld `choreography_draft` liefern.
+
+Frontend-Status heute:
+
+- `mapSearchResultToExerciseTemplate()` uebernimmt `choreography_draft`, falls vorhanden
+- wenn vorhanden, startet der Editor mit diesem KI-Vorschlag
+- wenn nicht vorhanden, bleibt der Editor leer
+
+Wichtig:
+
+- `choreography_draft` ist nur ein grober Startvorschlag
+- es gibt aktuell noch keine UI-Kennzeichnung wie `KI-Vorschlag`
+- es gibt aktuell noch keine Lambda-Implementierung in diesem Repo
+
+## Navigation / App-Flow
+
+Datei:
+
+- [frontend/src/App.jsx](../frontend/src/App.jsx)
+
+Wichtige Punkte:
+
+- `App` haelt `currentEditorTemplate` zentral
+- `Leere Übung` setzt `currentEditorTemplate = null`
+- `editorResetVersion` erzwingt einen frischen Editor-Mount
+- `editorInstanceKey` unterscheidet:
+  - lokales Dokument
+  - externe Vorlage
+  - bewusst neu gestarteten leeren Editor
+
+Warum das wichtig ist:
+
+- sonst bleiben bei "Leere Übung" lokale `useState`-Werte im Editor haengen
+
+## Mobile UI
+
+Desktop soll bewusst unveraendert bleiben. Mobile Anpassungen leben hauptsaechlich in:
+
+- [frontend/src/index.css](../frontend/src/index.css)
+- [frontend/src/App.jsx](../frontend/src/App.jsx)
+- [frontend/src/components/editor/Toolbar.jsx](../frontend/src/components/editor/Toolbar.jsx)
+
+### Mobile Hauptnavigation
+
+- unter `768px` wird die Desktop-Navigation ausgeblendet
+- stattdessen gibt es ein `☰ Menü`
+- das Dropdown enthaelt:
+  - `Editor`
+  - `Leere Übung`
+  - `Übungsbibliothek`
+  - `Meine Übungen`
+  - `Import`
+  - `Login` / `Logout`
+
+### Mobile Toolbar
+
+Die Desktop-Toolbar bleibt unveraendert.
+
+Unter `768px`:
+
+- keine lange horizontale Komplettleiste mehr
+- stattdessen kompaktes Raster mit Hauptaktionen:
+  - `Auswählen`
+  - `Spieler`
+  - `Material`
+- Rest liegt unter `Mehr Werkzeuge`
+- das Zusatzmenue rendert als Block unterhalb der Toolbar, nicht als abgeschnittenes Overlay
+
+## Auth / Login
+
+Es gibt inzwischen eine minimale Login-UI:
+
+- [frontend/src/pages/LoginPage.jsx](../frontend/src/pages/LoginPage.jsx)
+
+Wichtige Regeln:
+
+- Token liegt in `localStorage.token`
+- geschuetzt sind:
+  - `/editor`
+  - `/meine-uebungen`
+  - `/pdf-upload`
+- oeffentlich bleibt:
+  - `/uebungsbibliothek`
 
 ## Lokale URLs und Env
 
@@ -133,6 +279,7 @@ Editor:
   - alternativ `http://127.0.0.1:5173`
 - Docker-Frontend lokal:
   - `http://localhost:8080`
+  - alternativ `http://127.0.0.1:8080`
 - Backend lokal:
   - `http://localhost:4000`
 - Externe Such-API:
@@ -142,21 +289,22 @@ Wichtige Frontend-Variablen:
 
 - `VITE_API_BASE_URL`
   - optional
-  - wenn nicht gesetzt, faellt das Frontend aktuell auf `http://localhost:4000` zurueck
+  - Fallback aktuell: `http://localhost:4000`
 - `VITE_THUMBNAIL_BASE_URL`
-  - optional, aber wichtig fuer echte Thumbnail-Keys aus der Such-API
-  - wird genutzt, wenn `thumbnail_key` kein vollstaendiger URL ist
+  - optional
+  - wichtig fuer echte Thumbnail-Keys aus der AWS-Suche
 
 Wichtige Backend-Annahme:
 
-- CORS wurde fuer die lokale Entwicklung explizit auf diese Origins erweitert:
+- CORS ist lokal explizit offen fuer:
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
   - `http://localhost:8080`
+  - `http://127.0.0.1:8080`
 
 ## Gute nächste Schritte
 
-- Login-Seite bauen
-- `ExerciseTemplate` um Referenz-Metadaten systematischer erweitern
-- Feldtemplate dynamisch im Editor rendern
-- Speichern/Laden robuster machen, z. B. Dirty-State und explizites Rehydrate-Verhalten
+- `KI-Vorschlag` fuer `choreography_draft` sichtbar kennzeichnen
+- lokale `focus` spaeter ggf. in eigene Spalte migrieren, falls Filter/Reporting wachsen
+- Bundle groesser 500 kB spaeter per Code-Splitting aufraeumen
+- Editor-Thumbnail-Generierung weiter haerten, falls weitere Feldtemplates dazukommen
