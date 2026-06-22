@@ -21,6 +21,22 @@ function normalizeResults(payload) {
   return [];
 }
 
+function formatExerciseDate(exercise) {
+  const rawValue = exercise.created_at ?? exercise.updated_at ?? exercise.createdAt ?? exercise.updatedAt ?? '';
+  if (!rawValue) return '';
+
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function getThumbnailUrl(exercise) {
   const directThumbnailUrl = exercise.thumbnail_url ?? exercise.thumbnailUrl ?? '';
   const thumbnailKey = exercise.thumbnail_key ?? exercise.thumbnailKey ?? '';
@@ -266,6 +282,11 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
                 </span>
                 <span className="exercise-chip exercise-chip-muted">{exercise.sourceLabel}</span>
               </div>
+              {formatExerciseDate(exercise) && (
+                <div className="exercise-card-date">
+                  {formatExerciseDate(exercise)}
+                </div>
+              )}
             </div>
 
             <p className="exercise-card-summary">
