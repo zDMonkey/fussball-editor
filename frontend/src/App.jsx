@@ -27,10 +27,16 @@ function ProtectedRoute({ isAuthenticated, authReady, children }) {
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentEditorTemplate, setCurrentEditorTemplate] = useState(null);
+  // Erzwingt einen frischen Editor-Mount fuer "Leere Uebung", auch wenn
+  // bereits kein Template mehr aktiv ist.
   const [editorResetVersion, setEditorResetVersion] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  // Mobile-Navigation ist absichtlich komplett getrennt von der Desktop-Navigation,
+  // damit die Desktop-Links unveraendert bleiben und Mobile ein kompaktes Menue bekommt.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const token = window.localStorage.getItem('token');
@@ -65,6 +71,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    // Route-Wechsel sollen das mobile Menue immer schliessen, damit es nach
+    // einer Navigation nicht offen "haengen bleibt".
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
   const handleLogin = (user) => {
     setCurrentUser(user);
     setAuthReady(true);
@@ -83,6 +95,22 @@ export default function App() {
     navigate('/editor');
   };
 
+  const handleMobileNavigate = (to) => {
+    navigate(to);
+    setMobileNavOpen(false);
+  };
+
+  const handleMobileNewEditor = () => {
+    handleNewEditor();
+    setMobileNavOpen(false);
+  };
+
+  const handleMobileLogout = () => {
+    handleLogout();
+    navigate('/login');
+    setMobileNavOpen(false);
+  };
+
   const editorInstanceKey = currentEditorTemplate
     ? [
         currentEditorTemplate.id ?? 'template',
@@ -92,6 +120,10 @@ export default function App() {
         editorResetVersion,
       ].join(':')
     : `empty-editor:${editorResetVersion}`;
+  // Der Key trennt drei Faelle sauber:
+  // 1. gespeicherte lokale Uebung
+  // 2. importierte/externe Vorlage
+  // 3. bewusst neu gestarteter leerer Editor
 
   return (
     <div className="app-shell">
@@ -104,7 +136,7 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="app-nav" aria-label="Hauptnavigation">
+        <nav className="app-nav app-nav-desktop" aria-label="Hauptnavigation">
           <NavLink to="/uebungsbibliothek" className={navClassName}>
             Übungsbibliothek
           </NavLink>
@@ -130,6 +162,47 @@ export default function App() {
             </NavLink>
           )}
         </nav>
+
+        <div className="app-mobile-nav">
+          <button
+            className="app-nav-link app-nav-button app-mobile-nav-toggle"
+            type="button"
+            onClick={() => setMobileNavOpen((current) => !current)}
+            aria-expanded={mobileNavOpen}
+            aria-controls="mobile-navigation-menu"
+          >
+            ☰ Menü
+          </button>
+
+          {mobileNavOpen && (
+            <div className="app-mobile-nav-menu" id="mobile-navigation-menu">
+              <button className="app-mobile-nav-item" type="button" onClick={() => handleMobileNavigate('/editor')}>
+                Editor
+              </button>
+              <button className="app-mobile-nav-item" type="button" onClick={handleMobileNewEditor}>
+                Leere Übung
+              </button>
+              <button className="app-mobile-nav-item" type="button" onClick={() => handleMobileNavigate('/uebungsbibliothek')}>
+                Übungsbibliothek
+              </button>
+              <button className="app-mobile-nav-item" type="button" onClick={() => handleMobileNavigate('/meine-uebungen')}>
+                Meine Übungen
+              </button>
+              <button className="app-mobile-nav-item" type="button" onClick={() => handleMobileNavigate('/pdf-upload')}>
+                Import
+              </button>
+              {currentUser ? (
+                <button className="app-mobile-nav-item" type="button" onClick={handleMobileLogout}>
+                  Logout
+                </button>
+              ) : (
+                <button className="app-mobile-nav-item" type="button" onClick={() => handleMobileNavigate('/login')}>
+                  Login
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       <main className="app-main">

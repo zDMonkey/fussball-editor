@@ -1,7 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json ./
-RUN npm install --legacy-peer-deps && npm install @rollup/rollup-linux-x64-musl --optional
+RUN npm install --legacy-peer-deps
 COPY . .
 # Leer = relative URLs (/api/...) → nginx proxiert intern zum Backend
 ARG VITE_API_BASE_URL=

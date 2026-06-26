@@ -21,6 +21,24 @@ function normalizeResults(payload) {
   return [];
 }
 
+function formatExerciseDate(exercise) {
+  // Externe/importierte Treffer und lokale Exercises nutzen aktuell
+  // dieselbe Anzeige-Regel: created_at bevorzugen, sonst updated_at.
+  const rawValue = exercise.created_at ?? exercise.updated_at ?? exercise.createdAt ?? exercise.updatedAt ?? '';
+  if (!rawValue) return '';
+
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function getThumbnailUrl(exercise) {
   const directThumbnailUrl = exercise.thumbnail_url ?? exercise.thumbnailUrl ?? '';
   const thumbnailKey = exercise.thumbnail_key ?? exercise.thumbnailKey ?? '';
@@ -57,6 +75,8 @@ function normalizeLocalExercise(exercise) {
 }
 
 function normalizeExternalExercise(exercise) {
+  // Externe Suchtreffer bleiben bewusst flach. Die Bibliothek braucht hier
+  // nur genug Meta-Daten fuer Kartenansicht und Editor-Handoff.
   return {
     ...exercise,
     resultType: 'external',
@@ -145,6 +165,8 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
   };
 
   const handleOpenInEditor = (exercise) => {
+    // Lokale Übungen bringen bereits eine persistierte choreography mit.
+    // Externe Treffer werden dagegen weiterhin nur als Vorlage gemappt.
     const template = exercise.resultType === 'local'
       ? mapStoredExerciseToExerciseTemplate(exercise)
       : mapSearchResultToExerciseTemplate(exercise);
@@ -266,6 +288,11 @@ export default function ExerciseLibraryPage({ onOpenInEditor = () => {} }) {
                 </span>
                 <span className="exercise-chip exercise-chip-muted">{exercise.sourceLabel}</span>
               </div>
+              {formatExerciseDate(exercise) && (
+                <div className="exercise-card-date">
+                  {formatExerciseDate(exercise)}
+                </div>
+              )}
             </div>
 
             <p className="exercise-card-summary">
