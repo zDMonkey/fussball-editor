@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createUploadPresign, resolveUploadContentType, uploadFileToS3 } from '../lib/uploadApi';
+import { searchExercises } from '../lib/exerciseSearchApi';
 
-const EXERCISE_SEARCH_API = 'https://b5zb58pdy4.execute-api.eu-north-1.amazonaws.com/prod/search';
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -42,13 +42,6 @@ function createUploadEntry(file) {
   };
 }
 
-function normalizeResults(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.results)) return payload.results;
-  if (Array.isArray(payload?.items)) return payload.items;
-  return [];
-}
-
 function matchesImportedExercise(result, entry) {
   // Das Polling arbeitet absichtlich ohne neue Backend-Infrastruktur.
   // Deshalb pruefen wir pragmatisch mehrere vorhandene Felder:
@@ -67,15 +60,6 @@ function matchesImportedExercise(result, entry) {
     || resultTitle.includes(fileName)
     || (stem && resultTitle.includes(stem))
   );
-}
-
-async function searchImportedExercise(query) {
-  const response = await fetch(`${EXERCISE_SEARCH_API}?q=${encodeURIComponent(query)}`);
-  if (!response.ok) {
-    throw new Error(`Search API-Fehler (${response.status})`);
-  }
-
-  return normalizeResults(await response.json());
 }
 
 export default function PdfUploadPage() {
@@ -114,7 +98,7 @@ export default function PdfUploadPage() {
         const queryCandidates = [entry.objectKey, entry.file.name, entry.filenameStem].filter(Boolean);
 
         for (const query of queryCandidates) {
-          const results = await searchImportedExercise(query);
+          const results = await searchExercises(query);
           const importedExercise = results.find((result) => matchesImportedExercise(result, entry));
 
           if (importedExercise) {
